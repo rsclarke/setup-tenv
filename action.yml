@@ -1,0 +1,185 @@
+name: "Setup tenv"
+description: "Set up tofuutils/tenv with caching and signature verification support"
+inputs:
+  cosign-version:
+    description: "Version of cosign to install (e.g., 2.5.0). If not specified, the most recent version will be installed."
+    required: false
+    default: ""
+  tenv-version:
+    description: "Version of tenv to install (e.g., 4.4.0). If not specified, the most recent version will be installed."
+    required: false
+    default: ""
+  tool:
+    description: "Tool to install using tenv (e.g., terraform, tofu, etc.)"
+    required: true
+  tool-version:
+    description: "Version of the tool to install."
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check for cached cosign
+      id: check-cosign
+      shell: bash
+      run: |
+        ARCH=$(uname -m)
+        INSTALL_DIR="${RUNNER_TOOL_CACHE}/cosign/${ARCH}"
+        COSIGN_PATH="${INSTALL_DIR}/cosign"
+        REQUESTED_VERSION="${{ inputs.cosign-version }}"
+
+        echo "install-dir=${INSTALL_DIR}" >> $GITHUB_OUTPUT
+
+        # If no specific version is requested, we need to check if cosign exists but don't need to check version
+        if [ -z "${REQUESTED_VERSION}" ]; then
+          if [ -f "${COSIGN_PATH}" ] && [ -x "${COSIGN_PATH}" ]; then
+            echo "Found executable cosign at ${COSIGN_PATH}"
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "No executable cosign found at ${COSIGN_PATH}"
+            echo "found=false" >> $GITHUB_OUTPUT
+            # Create directory if it doesn't exist
+            mkdir -p "${INSTALL_DIR}"
+          fi
+        else
+          # If specific version is requested, check if that version is installed
+          if [ -f "${COSIGN_PATH}" ] && [ -x "${COSIGN_PATH}" ]; then
+            echo "Found executable cosign at ${COSIGN_PATH}, checking version"
+            INSTALLED_VERSION=$("${COSIGN_PATH}" version | grep -o 'GitVersion:[^,]*' | cut -d':' -f2 | xargs)
+            echo "Installed version: ${INSTALLED_VERSION}"
+            echo "Requested version: ${REQUESTED_VERSION}"
+
+            if [ "${INSTALLED_VERSION}" == "${REQUESTED_VERSION}" ]; then
+              echo "Installed version matches requested version"
+              echo "found=true" >> $GITHUB_OUTPUT
+            else
+              echo "Installed version does not match requested version, will reinstall"
+              echo "found=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No executable cosign found at ${COSIGN_PATH}"
+            echo "found=false" >> $GITHUB_OUTPUT
+            # Create directory if it doesn't exist
+            mkdir -p "${INSTALL_DIR}"
+          fi
+        fi
+
+    - name: Install cosign
+      if: steps.check-cosign.outputs.found != 'true'
+      uses: sigstore/cosign-installer@v3.8.1
+      with:
+        cosign-release: ${{ inputs.cosign-version }}
+        install-dir: ${{ steps.check-cosign.outputs.install-dir }}
+
+    - name: Add cosign to path
+      shell: bash
+      run: |
+        echo "${{ steps.check-cosign.outputs.install-dir }}" >> $GITHUB_PATH
+
+    - name: Check for cached tenv
+      id: check-tenv
+      shell: bash
+      run: |
+        # Determine OS and architecture
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        case "$(uname -m)" in
+          x86_64)
+            ARCH="amd64"
+            ;;
+          aarch64|arm64)
+            ARCH="arm64"
+            ;;
+          *)
+            ARCH="$(uname -m)"
+            ;;
+        esac
+
+        INSTALL_DIR="${RUNNER_TOOL_CACHE}/tenv/${ARCH}"
+        TENV_PATH="${INSTALL_DIR}/tenv"
+        REQUESTED_VERSION="${{ inputs.tenv-version }}"
+
+        echo "install-dir=${INSTALL_DIR}" >> $GITHUB_OUTPUT
+        echo "os=${OS}" >> $GITHUB_OUTPUT
+        echo "arch=${ARCH}" >> $GITHUB_OUTPUT
+        echo "requested-version=${REQUESTED_VERSION}" >> $GITHUB_OUTPUT
+
+        # If no specific version is requested, we need to check if tenv exists but don't need to check version
+        if [ -z "${REQUESTED_VERSION}" ]; then
+          if [ -f "${TENV_PATH}" ] && [ -x "${TENV_PATH}" ]; then
+            echo "Found executable tenv at ${TENV_PATH}"
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "No executable tenv found at ${TENV_PATH}"
+            echo "found=false" >> $GITHUB_OUTPUT
+            # Create directory if it doesn't exist
+            mkdir -p "${INSTALL_DIR}"
+          fi
+        else
+          # If specific version is requested, check if that version is installed
+          if [ -f "${TENV_PATH}" ] && [ -x "${TENV_PATH}" ]; then
+            echo "Found executable tenv at ${TENV_PATH}, checking version"
+            INSTALLED_VERSION=$("${TENV_PATH}" --version | cut -d' ' -f3)
+            echo "Installed version: ${INSTALLED_VERSION}"
+            echo "Requested version: ${REQUESTED_VERSION}"
+
+            if [ "${INSTALLED_VERSION}" == "${REQUESTED_VERSION}" ]; then
+              echo "Installed version matches requested version"
+              echo "found=true" >> $GITHUB_OUTPUT
+            else
+              echo "Installed version does not match requested version, will reinstall"
+              echo "found=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No executable tenv found at ${TENV_PATH}"
+            echo "found=false" >> $GITHUB_OUTPUT
+            # Create directory if it doesn't exist
+            mkdir -p "${INSTALL_DIR}"
+          fi
+        fi
+
+    - name: Download and verify tenv
+      if: steps.check-tenv.outputs.found != 'true'
+      shell: bash
+      run: |
+        # Set variables
+        INSTALL_DIR="${{ steps.check-tenv.outputs.install-dir }}"
+        OS="${{ steps.check-tenv.outputs.os }}"
+        ARCH="${{ steps.check-tenv.outputs.arch }}"
+        REQUESTED_VERSION="${{ steps.check-tenv.outputs.requested-version }}"
+        TEMP_DIR=$(mktemp -d)
+
+        # Determine which version to download
+        if [ -z "${REQUESTED_VERSION}" ]; then
+          TENV_VERSION=$(curl -s https://api.github.com/repos/tofuutils/tenv/releases/latest | grep -o '"tag_name": ".*"' | cut -d'"' -f4)
+        else
+          TENV_VERSION="${REQUESTED_VERSION}"
+        fi
+
+        # Download tenv
+        echo "Downloading tenv ${TENV_VERSION} for ${OS}_${ARCH}..."
+        curl -sL -o "${TEMP_DIR}/tenv" "https://github.com/tofuutils/tenv/releases/download/${TENV_VERSION}/tenv_${OS}_${ARCH}"
+        curl -sL -o "${TEMP_DIR}/tenv.sig" "https://github.com/tofuutils/tenv/releases/download/${TENV_VERSION}/tenv_${OS}_${ARCH}.sig"
+
+        # Verify signature
+        echo "Verifying tenv signature..."
+        cosign verify-blob --signature "${TEMP_DIR}/tenv.sig" "${TEMP_DIR}/tenv" --certificate-identity-regexp ".*@tofuutils.com" --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+        # Install tenv
+        chmod +x "${TEMP_DIR}/tenv"
+        mv "${TEMP_DIR}/tenv" "${INSTALL_DIR}/tenv"
+        echo "Installed tenv ${TENV_VERSION} to ${INSTALL_DIR}"
+        rm -rf "${TEMP_DIR}"
+
+    - name: Add tenv to path
+      shell: bash
+      run: |
+        echo "${{ steps.check-tenv.outputs.install-dir }}" >> $GITHUB_PATH
+
+    - name: Install tool with tenv
+      shell: bash
+      env:
+        TOOL_NAME: ${{ inputs.tool }}
+        TOOL_VERSION: ${{ inputs.tool-version }}
+        TOOL_ROOT: ${{ steps.check-tenv.outputs.install-dir }}
+      run: |
+        tenv $TOOL_NAME install $TOOL_VERSION

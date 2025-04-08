@@ -1,0 +1,129 @@
+version: "3"
+
+vars:
+  CURRENT_VERSION:
+    sh: git describe --tags --match 'v*.*.*' --abbrev=0 2>/dev/null || echo "v0.0.0"
+  MAJOR:
+    sh: echo "{{.CURRENT_VERSION}}" | sed -E 's/v([0-9]+)\.[0-9]+\.[0-9]+/\1/'
+  MINOR:
+    sh: echo "{{.CURRENT_VERSION}}" | sed -E 's/v[0-9]+\.([0-9]+)\.[0-9]+/\1/'
+  PATCH:
+    sh: echo "{{.CURRENT_VERSION}}" | sed -E 's/v[0-9]+\.[0-9]+\.([0-9]+)/\1/'
+  NEXT_PATCH:
+    sh: echo $(({{.PATCH}} + 1))
+  NEXT_MINOR:
+    sh: echo $(({{.MINOR}} + 1))
+  NEXT_MAJOR:
+    sh: echo $(({{.MAJOR}} + 1))
+
+  # Version strings
+  NEW_PATCH_VERSION: "v{{.MAJOR}}.{{.MINOR}}.{{.NEXT_PATCH}}"
+  CURRENT_MINOR_ALIAS: "v{{.MAJOR}}.{{.MINOR}}"
+  CURRENT_MAJOR_ALIAS: "v{{.MAJOR}}"
+
+  NEW_MINOR_VERSION: "v{{.MAJOR}}.{{.NEXT_MINOR}}.0"
+  NEW_MINOR_ALIAS: "v{{.MAJOR}}.{{.NEXT_MINOR}}"
+
+  NEW_MAJOR_VERSION: "v{{.NEXT_MAJOR}}.0.0"
+  NEW_MAJOR_ALIAS: "v{{.NEXT_MAJOR}}"
+  NEW_MAJOR_MINOR_ALIAS: "v{{.NEXT_MAJOR}}.0"
+
+tasks:
+  _tag:create:
+    internal: true
+    desc: Helper to create and push a git tag
+    cmds:
+      - git tag -s -a "{{.TAG}}" -m "{{.MESSAGE}}"
+      - git push origin "{{.TAG}}"
+
+  _tag:update:
+    internal: true
+    desc: Helper to update an existing tag to point to the current commit
+    cmds:
+      - git tag -s -fa "{{.TAG}}" -m "{{.MESSAGE}}"
+      - git push -f origin "{{.TAG}}"
+
+  version:patch:
+    desc: Create a new patch version tag and update alias tags
+    cmds:
+      - task: _tag:create
+        vars:
+          TAG: "{{.NEW_PATCH_VERSION}}"
+          MESSAGE: "Release {{.NEW_PATCH_VERSION}}"
+
+      # Update the minor alias to point to this commit
+      - task: _tag:update
+        vars:
+          TAG: "{{.CURRENT_MINOR_ALIAS}}"
+          MESSAGE: "Release alias for {{.NEW_PATCH_VERSION}}"
+
+      # Update the major alias to point to this commit
+      - task: _tag:update
+        vars:
+          TAG: "{{.CURRENT_MAJOR_ALIAS}}"
+          MESSAGE: "Release alias for {{.NEW_PATCH_VERSION}}"
+
+  version:minor:
+    desc: Create a new minor version tag with updated alias tags
+    cmds:
+      - task: _tag:create
+        vars:
+          TAG: "{{.NEW_MINOR_VERSION}}"
+          MESSAGE: "Release {{.NEW_MINOR_VERSION}}"
+
+      # Create the new minor alias
+      - task: _tag:create
+        vars:
+          TAG: "{{.NEW_MINOR_ALIAS}}"
+          MESSAGE: "Release alias for {{.NEW_MINOR_VERSION}}"
+
+      # Update the major alias to point to this commit
+      - task: _tag:update
+        vars:
+          TAG: "{{.CURRENT_MAJOR_ALIAS}}"
+          MESSAGE: "Release alias for {{.NEW_MINOR_VERSION}}"
+
+  version:major:
+    desc: Create a new major version tag with major and minor aliases
+    cmds:
+      - task: _tag:create
+        vars:
+          TAG: "{{.NEW_MAJOR_VERSION}}"
+          MESSAGE: "Release {{.NEW_MAJOR_VERSION}}"
+
+      # Create the new major alias
+      - task: _tag:create
+        vars:
+          TAG: "{{.NEW_MAJOR_ALIAS}}"
+          MESSAGE: "Release alias for {{.NEW_MAJOR_VERSION}}"
+
+      # Create the new major.minor alias
+      - task: _tag:create
+        vars:
+          TAG: "{{.NEW_MAJOR_MINOR_ALIAS}}"
+          MESSAGE: "Release alias for {{.NEW_MAJOR_VERSION}}"
+
+  release:latest:
+    desc: Create a GitHub release for the latest tag
+    cmds:
+      - |
+        LATEST_TAG=$(git describe --tags --match 'v*.*.*' --abbrev=0)
+        gh release create "$LATEST_TAG" --title "Release $LATEST_TAG" --generate-notes
+
+  release:patch:
+    desc: Create a new patch version and release it on GitHub
+    cmds:
+      - task: version:patch
+      - task: release:latest
+
+  release:minor:
+    desc: Create a new minor version (with aliases) and release it on GitHub
+    cmds:
+      - task: version:minor
+      - task: release:latest
+
+  release:major:
+    desc: Create a new major version (with aliases) and release it on GitHub
+    cmds:
+      - task: version:major
+      - task: release:latest
