@@ -166,20 +166,20 @@ runs:
 
         # Download tenv archive and verification files
         echo "Downloading tenv ${TENV_VERSION} for ${OS}_${ARCH}..."
-        TARBALL_NAME="tenv_${TENV_VERSION#v}_${OS}_${ARCH}.tar.gz"
+        TARBALL_NAME="tenv_${TENV_VERSION}_${OS}_${ARCH}.tar.gz"
         RELEASE_URL="https://github.com/tofuutils/tenv/releases/download/${TENV_VERSION}"
-        
+
         # Download the tarball and its signature files
         curl -sL -o "${TEMP_DIR}/${TARBALL_NAME}" "${RELEASE_URL}/${TARBALL_NAME}"
         curl -sL -o "${TEMP_DIR}/${TARBALL_NAME}.sig" "${RELEASE_URL}/${TARBALL_NAME}.sig"
         curl -sL -o "${TEMP_DIR}/${TARBALL_NAME}.pem" "${RELEASE_URL}/${TARBALL_NAME}.pem"
-        
+
         # Download checksums and signature files
-        CHECKSUMS_FILE="tenv_${TENV_VERSION#v}_checksums.txt"
+        CHECKSUMS_FILE="tenv_${TENV_VERSION}_checksums.txt"
         curl -sL -o "${TEMP_DIR}/${CHECKSUMS_FILE}" "${RELEASE_URL}/${CHECKSUMS_FILE}"
         curl -sL -o "${TEMP_DIR}/${CHECKSUMS_FILE}.sig" "${RELEASE_URL}/${CHECKSUMS_FILE}.sig"
         curl -sL -o "${TEMP_DIR}/${CHECKSUMS_FILE}.pem" "${RELEASE_URL}/${CHECKSUMS_FILE}.pem"
-        
+
         # Verify checksums signature
         echo "Verifying checksums signature..."
         cosign verify-blob \
@@ -188,7 +188,7 @@ runs:
           --certificate "${TEMP_DIR}/${CHECKSUMS_FILE}.pem" \
           --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
           "${TEMP_DIR}/${CHECKSUMS_FILE}"
-        
+
         # Verify tarball signature
         echo "Verifying tarball signature..."
         cosign verify-blob \
@@ -197,17 +197,17 @@ runs:
           --certificate "${TEMP_DIR}/${TARBALL_NAME}.pem" \
           --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
           "${TEMP_DIR}/${TARBALL_NAME}"
-        
+
         # Verify tarball against checksums
         echo "Verifying tarball against checksums..."
         pushd "${TEMP_DIR}" > /dev/null
         sha256sum --check --ignore-missing <(grep "${TARBALL_NAME}" "${CHECKSUMS_FILE}")
         popd > /dev/null
-        
+
         # Extract tenv binary from tarball
         echo "Extracting tenv binary..."
         tar -xzf "${TEMP_DIR}/${TARBALL_NAME}" -C "${TEMP_DIR}"
-        
+
         # Install tenv
         chmod +x "${TEMP_DIR}/tenv"
         mv "${TEMP_DIR}/tenv" "${INSTALL_DIR}/tenv"
