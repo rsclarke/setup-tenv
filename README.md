@@ -21,8 +21,8 @@ steps:
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `cosign-version` | Version of cosign to install (e.g., `2.5.0`). | No | Latest version |
-| `tenv-version` | Version of tenv to install (e.g., `4.4.0`). | No | Latest version |
+| `cosign-version` | Version of cosign to install (e.g., `v2.5.0`). | No | v2.5.0 |
+| `tenv-version` | Version of tenv to install (e.g., `v4.4.0`). | No | v4.4.0 |
 | `tool` | Tool to install using tenv (e.g., `terraform`, `tofu`, etc.) | Yes | N/A |
 | `tool-version` | Version of the tool to install. | Yes | N/A |
 

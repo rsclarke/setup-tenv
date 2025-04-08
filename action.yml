@@ -2,13 +2,13 @@ name: "Setup tenv"
 description: "Set up tofuutils/tenv with caching and signature verification support"
 inputs:
   cosign-version:
-    description: "Version of cosign to install (e.g., 2.5.0). If not specified, the most recent version will be installed."
+    description: "Version of cosign to install (e.g., v2.5.0). If not specified, the most recent version will be installed."
     required: false
-    default: ""
+    default: "v2.5.0"
   tenv-version:
-    description: "Version of tenv to install (e.g., 4.4.0). If not specified, the most recent version will be installed."
+    description: "Version of tenv to install (e.g., v4.4.0). If not specified, the most recent version will be installed."
     required: false
-    default: ""
+    default: "v4.4.0"
   tool:
     description: "Tool to install using tenv (e.g., terraform, tofu, etc.)"
     required: true
@@ -46,10 +46,12 @@ runs:
           if [ -f "${COSIGN_PATH}" ] && [ -x "${COSIGN_PATH}" ]; then
             echo "Found executable cosign at ${COSIGN_PATH}, checking version"
             INSTALLED_VERSION=$("${COSIGN_PATH}" version | grep -o 'GitVersion:[^,]*' | cut -d':' -f2 | xargs)
+            # Remove 'v' prefix from requested version if present
+            NORMALIZED_REQUESTED_VERSION="${REQUESTED_VERSION#v}"
             echo "Installed version: ${INSTALLED_VERSION}"
-            echo "Requested version: ${REQUESTED_VERSION}"
+            echo "Requested version (normalized): ${NORMALIZED_REQUESTED_VERSION}"
 
-            if [ "${INSTALLED_VERSION}" == "${REQUESTED_VERSION}" ]; then
+            if [ "${INSTALLED_VERSION}" == "${NORMALIZED_REQUESTED_VERSION}" ]; then
               echo "Installed version matches requested version"
               echo "found=true" >> $GITHUB_OUTPUT
             else
@@ -119,10 +121,12 @@ runs:
           if [ -f "${TENV_PATH}" ] && [ -x "${TENV_PATH}" ]; then
             echo "Found executable tenv at ${TENV_PATH}, checking version"
             INSTALLED_VERSION=$("${TENV_PATH}" --version | cut -d' ' -f3)
+            # Remove 'v' prefix from requested version if present
+            NORMALIZED_REQUESTED_VERSION="${REQUESTED_VERSION#v}"
             echo "Installed version: ${INSTALLED_VERSION}"
-            echo "Requested version: ${REQUESTED_VERSION}"
+            echo "Requested version (normalized): ${NORMALIZED_REQUESTED_VERSION}"
 
-            if [ "${INSTALLED_VERSION}" == "${REQUESTED_VERSION}" ]; then
+            if [ "${INSTALLED_VERSION}" == "${NORMALIZED_REQUESTED_VERSION}" ]; then
               echo "Installed version matches requested version"
               echo "found=true" >> $GITHUB_OUTPUT
             else
@@ -152,7 +156,12 @@ runs:
         if [ -z "${REQUESTED_VERSION}" ]; then
           TENV_VERSION=$(curl -s https://api.github.com/repos/tofuutils/tenv/releases/latest | grep -o '"tag_name": ".*"' | cut -d'"' -f4)
         else
-          TENV_VERSION="${REQUESTED_VERSION}"
+          # Keep the 'v' prefix for GitHub releases if it doesn't exist
+          if [[ "${REQUESTED_VERSION}" == v* ]]; then
+            TENV_VERSION="${REQUESTED_VERSION}"
+          else
+            TENV_VERSION="v${REQUESTED_VERSION}"
+          fi
         fi
 
         # Download tenv
