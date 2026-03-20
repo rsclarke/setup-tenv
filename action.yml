@@ -28,19 +28,32 @@ runs:
       shell: bash
       run: |
         ARCH=$(uname -m)
-        INSTALL_DIR="${RUNNER_TOOL_CACHE}/cosign/${ARCH}"
-        COSIGN_PATH="${INSTALL_DIR}/cosign"
+        TOOL_CACHE_DIR="${RUNNER_TOOL_CACHE}/cosign"
 
-        echo "install-dir=${INSTALL_DIR}" >> $GITHUB_OUTPUT
+        echo "arch=${ARCH}" >> $GITHUB_OUTPUT
 
-        if [ -f "${COSIGN_PATH}" ] && [ -x "${COSIGN_PATH}" ]; then
-          echo "Found executable cosign at ${COSIGN_PATH}"
-          echo "found=true" >> $GITHUB_OUTPUT
-        else
-          echo "No executable cosign found at ${COSIGN_PATH}"
-          echo "found=false" >> $GITHUB_OUTPUT
-          mkdir -p "${INSTALL_DIR}"
+        # Look for any version with a .complete marker (convention: <tool>/<version>/<arch>.complete)
+        FOUND=false
+        if [ -d "${TOOL_CACHE_DIR}" ]; then
+          for VERSION_DIR in "${TOOL_CACHE_DIR}"/*/; do
+            if [ -f "${VERSION_DIR}${ARCH}.complete" ] && [ -x "${VERSION_DIR}${ARCH}/cosign" ]; then
+              echo "Found cached cosign at ${VERSION_DIR}${ARCH}/cosign"
+              echo "install-dir=${VERSION_DIR}${ARCH}" >> $GITHUB_OUTPUT
+              FOUND=true
+              break
+            fi
+          done
         fi
+
+        if [ "${FOUND}" != "true" ]; then
+          # Prepare install dir for cosign-installer (version will be resolved after install)
+          INSTALL_DIR="${TOOL_CACHE_DIR}/pending/${ARCH}"
+          mkdir -p "${INSTALL_DIR}"
+          echo "No cached cosign found"
+          echo "install-dir=${INSTALL_DIR}" >> $GITHUB_OUTPUT
+        fi
+
+        echo "found=${FOUND}" >> $GITHUB_OUTPUT
 
     - name: Install cosign
       if: steps.check-cosign.outputs.found != 'true'
@@ -48,10 +61,36 @@ runs:
       with:
         install-dir: ${{ steps.check-cosign.outputs.install-dir }}
 
+    - name: Register cosign in tool cache
+      if: steps.check-cosign.outputs.found != 'true'
+      id: register-cosign
+      shell: bash
+      run: |
+        ARCH="${{ steps.check-cosign.outputs.arch }}"
+        PENDING_DIR="${RUNNER_TOOL_CACHE}/cosign/pending/${ARCH}"
+        INSTALLED_VERSION=$("${PENDING_DIR}/cosign" version 2>&1 | grep -o 'GitVersion:[^,]*' | cut -d':' -f2 | xargs)
+        INSTALLED_VERSION="${INSTALLED_VERSION#v}"
+
+        # Move to conventional path: <tool>/<version>/<arch>/
+        TARGET_DIR="${RUNNER_TOOL_CACHE}/cosign/${INSTALLED_VERSION}/${ARCH}"
+        mkdir -p "${TARGET_DIR}"
+        mv "${PENDING_DIR}/cosign" "${TARGET_DIR}/cosign"
+        rm -rf "${RUNNER_TOOL_CACHE}/cosign/pending"
+
+        # Create the .complete sentinel
+        touch "${RUNNER_TOOL_CACHE}/cosign/${INSTALLED_VERSION}/${ARCH}.complete"
+
+        echo "Registered cosign ${INSTALLED_VERSION} in tool cache"
+        echo "install-dir=${TARGET_DIR}" >> $GITHUB_OUTPUT
+
     - name: Add cosign to path
       shell: bash
       run: |
-        echo "${{ steps.check-cosign.outputs.install-dir }}" >> $GITHUB_PATH
+        if [ "${{ steps.check-cosign.outputs.found }}" == "true" ]; then
+          echo "${{ steps.check-cosign.outputs.install-dir }}" >> $GITHUB_PATH
+        else
+          echo "${{ steps.register-cosign.outputs.install-dir }}" >> $GITHUB_PATH
+        fi
 
     - name: Check for cached tenv
       id: check-tenv
@@ -66,51 +105,30 @@ runs:
             ;;
         esac
 
-        INSTALL_DIR="${RUNNER_TOOL_CACHE}/tenv/${ARCH}/bin"
-        TENV_ROOT_DIR="${RUNNER_TOOL_CACHE}/tenv/${ARCH}/root"
-        TENV_PATH="${INSTALL_DIR}/tenv"
         REQUESTED_VERSION="${{ inputs.tenv-version }}"
+        NORMALIZED_VERSION="${REQUESTED_VERSION#v}"
+
+        # Tool cache convention: <tool>/<version>/<arch>/
+        INSTALL_DIR="${RUNNER_TOOL_CACHE}/tenv/${NORMALIZED_VERSION}/${ARCH}"
+        TENV_ROOT_DIR="${INSTALL_DIR}/root"
+        TENV_BIN_DIR="${INSTALL_DIR}/bin"
+        TENV_PATH="${TENV_BIN_DIR}/tenv"
+        COMPLETE_MARKER="${RUNNER_TOOL_CACHE}/tenv/${NORMALIZED_VERSION}/${ARCH}.complete"
 
         echo "install-dir=${INSTALL_DIR}" >> $GITHUB_OUTPUT
+        echo "bin-dir=${TENV_BIN_DIR}" >> $GITHUB_OUTPUT
         echo "tenv-root=${TENV_ROOT_DIR}" >> $GITHUB_OUTPUT
         echo "os=${OS}" >> $GITHUB_OUTPUT
         echo "arch=${ARCH}" >> $GITHUB_OUTPUT
         echo "requested-version=${REQUESTED_VERSION}" >> $GITHUB_OUTPUT
 
-        # If no specific version is requested, we need to check if tenv exists but don't need to check version
-        if [ -z "${REQUESTED_VERSION}" ]; then
-          if [ -f "${TENV_PATH}" ] && [ -x "${TENV_PATH}" ]; then
-            echo "Found executable tenv at ${TENV_PATH}"
-            echo "found=true" >> $GITHUB_OUTPUT
-          else
-            echo "No executable tenv found at ${TENV_PATH}"
-            echo "found=false" >> $GITHUB_OUTPUT
-            # Create directory if it doesn't exist
-            mkdir -p "${INSTALL_DIR}"
-          fi
+        if [ -f "${COMPLETE_MARKER}" ] && [ -f "${TENV_PATH}" ] && [ -x "${TENV_PATH}" ]; then
+          echo "Found cached tenv ${NORMALIZED_VERSION} at ${TENV_BIN_DIR}"
+          echo "found=true" >> $GITHUB_OUTPUT
         else
-          # If specific version is requested, check if that version is installed
-          if [ -f "${TENV_PATH}" ] && [ -x "${TENV_PATH}" ]; then
-            echo "Found executable tenv at ${TENV_PATH}, checking version"
-            INSTALLED_VERSION=$("${TENV_PATH}" --version | cut -d' ' -f3)
-            # Remove 'v' prefix from requested version if present
-            NORMALIZED_REQUESTED_VERSION="${REQUESTED_VERSION#v}"
-            echo "Installed version: ${INSTALLED_VERSION}"
-            echo "Requested version (normalized): ${NORMALIZED_REQUESTED_VERSION}"
-
-            if [ "${INSTALLED_VERSION#v}" == "${NORMALIZED_REQUESTED_VERSION}" ]; then
-              echo "Installed version matches requested version"
-              echo "found=true" >> $GITHUB_OUTPUT
-            else
-              echo "Installed version does not match requested version, will reinstall"
-              echo "found=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "No executable tenv found at ${TENV_PATH}"
-            echo "found=false" >> $GITHUB_OUTPUT
-            # Create directory if it doesn't exist
-            mkdir -p "${INSTALL_DIR}"
-          fi
+          echo "No cached tenv ${NORMALIZED_VERSION} found"
+          echo "found=false" >> $GITHUB_OUTPUT
+          mkdir -p "${TENV_BIN_DIR}"
         fi
 
     - name: Download and verify tenv
@@ -118,7 +136,7 @@ runs:
       shell: bash
       run: |
         # Set variables
-        INSTALL_DIR="${{ steps.check-tenv.outputs.install-dir }}"
+        BIN_DIR="${{ steps.check-tenv.outputs.bin-dir }}"
         OS="${{ steps.check-tenv.outputs.os }}"
         ARCH="${{ steps.check-tenv.outputs.arch }}"
         REQUESTED_VERSION="${{ steps.check-tenv.outputs.requested-version }}"
@@ -178,16 +196,20 @@ runs:
 
         # Extract tenv and tool symlinks into install directory
         echo "Extracting tenv..."
-        mkdir -p "${INSTALL_DIR}"
-        tar -xzf "${TEMP_DIR}/${TARBALL_NAME}" -C "${INSTALL_DIR}" --exclude='LICENSE' --exclude='README.md' --exclude='CHANGELOG.md'
-        chmod +x "${INSTALL_DIR}/tenv"
-        echo "Installed tenv ${TENV_VERSION} to ${INSTALL_DIR}"
+        mkdir -p "${BIN_DIR}"
+        tar -xzf "${TEMP_DIR}/${TARBALL_NAME}" -C "${BIN_DIR}" --exclude='LICENSE' --exclude='README.md' --exclude='CHANGELOG.md'
+        chmod +x "${BIN_DIR}/tenv"
+        echo "Installed tenv ${TENV_VERSION} to ${BIN_DIR}"
         rm -rf "${TEMP_DIR}"
+
+        # Create the .complete sentinel
+        NORMALIZED_VERSION="${REQUESTED_VERSION#v}"
+        touch "${RUNNER_TOOL_CACHE}/tenv/${NORMALIZED_VERSION}/${ARCH}.complete"
 
     - name: Add tenv to path
       shell: bash
       run: |
-        echo "${{ steps.check-tenv.outputs.install-dir }}" >> $GITHUB_PATH
+        echo "${{ steps.check-tenv.outputs.bin-dir }}" >> $GITHUB_PATH
 
     - name: Set TENV_ROOT
       shell: bash
