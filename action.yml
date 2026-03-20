@@ -2,11 +2,11 @@ name: "Setup tenv"
 description: "Set up tofuutils/tenv with caching and signature verification support"
 inputs:
   cosign-version:
-    description: "Version of cosign to install (e.g., v2.5.0). If not specified, the most recent version will be installed."
+    description: "Version of cosign to install (e.g., v2.5.0). Defaults to v2.5.0."
     required: false
     default: "v2.5.0"
   tenv-version:
-    description: "Version of tenv to install (e.g., v4.4.0). If not specified, the most recent version will be installed."
+    description: "Version of tenv to install (e.g., v4.4.0). Defaults to v4.4.0."
     required: false
     default: "v4.4.0"
   tool:
@@ -51,7 +51,7 @@ runs:
             echo "Installed version: ${INSTALLED_VERSION}"
             echo "Requested version (normalized): ${NORMALIZED_REQUESTED_VERSION}"
 
-            if [ "${INSTALLED_VERSION}" == "${NORMALIZED_REQUESTED_VERSION}" ]; then
+            if [ "${INSTALLED_VERSION#v}" == "${NORMALIZED_REQUESTED_VERSION}" ]; then
               echo "Installed version matches requested version"
               echo "found=true" >> $GITHUB_OUTPUT
             else
@@ -82,25 +82,22 @@ runs:
       id: check-tenv
       shell: bash
       run: |
-        # Determine OS and architecture
-        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-        case "$(uname -m)" in
-          x86_64)
-            ARCH="amd64"
-            ;;
-          aarch64|arm64)
+        # Determine OS and architecture (must match tenv release asset naming)
+        OS=$(uname -s)
+        ARCH=$(uname -m)
+        case "${ARCH}" in
+          aarch64)
             ARCH="arm64"
-            ;;
-          *)
-            ARCH="$(uname -m)"
             ;;
         esac
 
-        INSTALL_DIR="${RUNNER_TOOL_CACHE}/tenv/${ARCH}"
+        INSTALL_DIR="${RUNNER_TOOL_CACHE}/tenv/${ARCH}/bin"
+        TENV_ROOT_DIR="${RUNNER_TOOL_CACHE}/tenv/${ARCH}/root"
         TENV_PATH="${INSTALL_DIR}/tenv"
         REQUESTED_VERSION="${{ inputs.tenv-version }}"
 
         echo "install-dir=${INSTALL_DIR}" >> $GITHUB_OUTPUT
+        echo "tenv-root=${TENV_ROOT_DIR}" >> $GITHUB_OUTPUT
         echo "os=${OS}" >> $GITHUB_OUTPUT
         echo "arch=${ARCH}" >> $GITHUB_OUTPUT
         echo "requested-version=${REQUESTED_VERSION}" >> $GITHUB_OUTPUT
@@ -126,7 +123,7 @@ runs:
             echo "Installed version: ${INSTALLED_VERSION}"
             echo "Requested version (normalized): ${NORMALIZED_REQUESTED_VERSION}"
 
-            if [ "${INSTALLED_VERSION}" == "${NORMALIZED_REQUESTED_VERSION}" ]; then
+            if [ "${INSTALLED_VERSION#v}" == "${NORMALIZED_REQUESTED_VERSION}" ]; then
               echo "Installed version matches requested version"
               echo "found=true" >> $GITHUB_OUTPUT
             else
@@ -201,16 +198,14 @@ runs:
         # Verify tarball against checksums
         echo "Verifying tarball against checksums..."
         pushd "${TEMP_DIR}" > /dev/null
-        sha256sum --check --ignore-missing <(grep "${TARBALL_NAME}" "${CHECKSUMS_FILE}")
+        shasum -a 256 --check <(grep "${TARBALL_NAME}" "${CHECKSUMS_FILE}")
         popd > /dev/null
 
-        # Extract tenv binary from tarball
-        echo "Extracting tenv binary..."
-        tar -xzf "${TEMP_DIR}/${TARBALL_NAME}" -C "${TEMP_DIR}"
-
-        # Install tenv
-        chmod +x "${TEMP_DIR}/tenv"
-        mv "${TEMP_DIR}/tenv" "${INSTALL_DIR}/tenv"
+        # Extract tenv and tool symlinks into install directory
+        echo "Extracting tenv..."
+        mkdir -p "${INSTALL_DIR}"
+        tar -xzf "${TEMP_DIR}/${TARBALL_NAME}" -C "${INSTALL_DIR}" --exclude='LICENSE' --exclude='README.md' --exclude='CHANGELOG.md'
+        chmod +x "${INSTALL_DIR}/tenv"
         echo "Installed tenv ${TENV_VERSION} to ${INSTALL_DIR}"
         rm -rf "${TEMP_DIR}"
 
@@ -219,11 +214,16 @@ runs:
       run: |
         echo "${{ steps.check-tenv.outputs.install-dir }}" >> $GITHUB_PATH
 
+    - name: Set TENV_ROOT
+      shell: bash
+      run: |
+        echo "TENV_ROOT=${{ steps.check-tenv.outputs.tenv-root }}" >> $GITHUB_ENV
+
     - name: Install tool with tenv
       shell: bash
       env:
         TOOL_NAME: ${{ inputs.tool }}
         TOOL_VERSION: ${{ inputs.tool-version }}
-        TOOL_ROOT: ${{ steps.check-tenv.outputs.install-dir }}
+        TENV_GITHUB_TOKEN: ${{ github.token }}
       run: |
         tenv $TOOL_NAME install $TOOL_VERSION

@@ -1,0 +1,29 @@
+name: Test setup-tenv
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        tool: [tofu, terraform]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup tenv
+        uses: ./
+        with:
+          tool: ${{ matrix.tool }}
+          tool-version: latest
+      - name: Verify tenv
+        run: |
+          which tenv
+          tenv version
+      - name: Verify tool
+        run: |
+          which ${{ matrix.tool }}
+          ${{ matrix.tool }} version
+
