@@ -21,7 +21,7 @@ steps:
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `tenv-version` | Version of tenv to install (e.g., `v4.4.0`). | No | v4.4.0 |
+| `tenv-version` | Version of tenv to install (e.g., `v4.9.3`). | No | v4.9.3 |
 | `tool` | Tool to install using tenv (e.g., `terraform`, `tofu`, etc.) | Yes | N/A |
 | `tool-version` | Version of the tool to install. | Yes | N/A |
 

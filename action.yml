@@ -2,9 +2,9 @@ name: "Setup tenv"
 description: "Set up tofuutils/tenv with caching and signature verification support"
 inputs:
   tenv-version:
-    description: "Version of tenv to install (e.g., v4.4.0). Defaults to v4.4.0."
+    description: "Version of tenv to install (e.g., v4.9.3). Defaults to v4.9.3."
     required: false
-    default: "v4.4.0"
+    default: "v4.9.3"
   tool:
     description: "Tool to install using tenv (e.g., terraform, tofu, etc.)"
     required: true
