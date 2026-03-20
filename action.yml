@@ -91,11 +91,13 @@ runs:
             ;;
         esac
 
-        INSTALL_DIR="${RUNNER_TOOL_CACHE}/tenv/${ARCH}"
+        INSTALL_DIR="${RUNNER_TOOL_CACHE}/tenv/${ARCH}/bin"
+        TENV_ROOT_DIR="${RUNNER_TOOL_CACHE}/tenv/${ARCH}/root"
         TENV_PATH="${INSTALL_DIR}/tenv"
         REQUESTED_VERSION="${{ inputs.tenv-version }}"
 
         echo "install-dir=${INSTALL_DIR}" >> $GITHUB_OUTPUT
+        echo "tenv-root=${TENV_ROOT_DIR}" >> $GITHUB_OUTPUT
         echo "os=${OS}" >> $GITHUB_OUTPUT
         echo "arch=${ARCH}" >> $GITHUB_OUTPUT
         echo "requested-version=${REQUESTED_VERSION}" >> $GITHUB_OUTPUT
@@ -215,7 +217,7 @@ runs:
     - name: Set TENV_ROOT
       shell: bash
       run: |
-        echo "TENV_ROOT=${{ steps.check-tenv.outputs.install-dir }}" >> $GITHUB_ENV
+        echo "TENV_ROOT=${{ steps.check-tenv.outputs.tenv-root }}" >> $GITHUB_ENV
 
     - name: Install tool with tenv
       shell: bash
