@@ -21,7 +21,7 @@ runs:
         path: |
           ${{ runner.tool_cache }}/cosign
           ${{ runner.tool_cache }}/tenv
-        key: setup-tenv-${{ runner.os }}-${{ runner.arch }}
+        key: setup-tenv-${{ runner.os }}-${{ runner.arch }}-tenv-${{ inputs.tenv-version }}
 
     - name: Check for cached cosign
       id: check-cosign
