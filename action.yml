@@ -1,10 +1,6 @@
 name: "Setup tenv"
 description: "Set up tofuutils/tenv with caching and signature verification support"
 inputs:
-  cosign-version:
-    description: "Version of cosign to install (e.g., v2.5.0). Defaults to v2.5.0."
-    required: false
-    default: "v2.5.0"
   tenv-version:
     description: "Version of tenv to install (e.g., v4.4.0). Defaults to v4.4.0."
     required: false
@@ -34,51 +30,22 @@ runs:
         ARCH=$(uname -m)
         INSTALL_DIR="${RUNNER_TOOL_CACHE}/cosign/${ARCH}"
         COSIGN_PATH="${INSTALL_DIR}/cosign"
-        REQUESTED_VERSION="${{ inputs.cosign-version }}"
 
         echo "install-dir=${INSTALL_DIR}" >> $GITHUB_OUTPUT
 
-        # If no specific version is requested, we need to check if cosign exists but don't need to check version
-        if [ -z "${REQUESTED_VERSION}" ]; then
-          if [ -f "${COSIGN_PATH}" ] && [ -x "${COSIGN_PATH}" ]; then
-            echo "Found executable cosign at ${COSIGN_PATH}"
-            echo "found=true" >> $GITHUB_OUTPUT
-          else
-            echo "No executable cosign found at ${COSIGN_PATH}"
-            echo "found=false" >> $GITHUB_OUTPUT
-            # Create directory if it doesn't exist
-            mkdir -p "${INSTALL_DIR}"
-          fi
+        if [ -f "${COSIGN_PATH}" ] && [ -x "${COSIGN_PATH}" ]; then
+          echo "Found executable cosign at ${COSIGN_PATH}"
+          echo "found=true" >> $GITHUB_OUTPUT
         else
-          # If specific version is requested, check if that version is installed
-          if [ -f "${COSIGN_PATH}" ] && [ -x "${COSIGN_PATH}" ]; then
-            echo "Found executable cosign at ${COSIGN_PATH}, checking version"
-            INSTALLED_VERSION=$("${COSIGN_PATH}" version | grep -o 'GitVersion:[^,]*' | cut -d':' -f2 | xargs)
-            # Remove 'v' prefix from requested version if present
-            NORMALIZED_REQUESTED_VERSION="${REQUESTED_VERSION#v}"
-            echo "Installed version: ${INSTALLED_VERSION}"
-            echo "Requested version (normalized): ${NORMALIZED_REQUESTED_VERSION}"
-
-            if [ "${INSTALLED_VERSION#v}" == "${NORMALIZED_REQUESTED_VERSION}" ]; then
-              echo "Installed version matches requested version"
-              echo "found=true" >> $GITHUB_OUTPUT
-            else
-              echo "Installed version does not match requested version, will reinstall"
-              echo "found=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "No executable cosign found at ${COSIGN_PATH}"
-            echo "found=false" >> $GITHUB_OUTPUT
-            # Create directory if it doesn't exist
-            mkdir -p "${INSTALL_DIR}"
-          fi
+          echo "No executable cosign found at ${COSIGN_PATH}"
+          echo "found=false" >> $GITHUB_OUTPUT
+          mkdir -p "${INSTALL_DIR}"
         fi
 
     - name: Install cosign
       if: steps.check-cosign.outputs.found != 'true'
-      uses: sigstore/cosign-installer@v3.8.1
+      uses: sigstore/cosign-installer@v4.1.0
       with:
-        cosign-release: ${{ inputs.cosign-version }}
         install-dir: ${{ steps.check-cosign.outputs.install-dir }}
 
     - name: Add cosign to path
