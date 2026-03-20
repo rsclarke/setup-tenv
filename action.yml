@@ -19,6 +19,14 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Restore tool cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ runner.tool_cache }}/cosign
+          ${{ runner.tool_cache }}/tenv
+        key: setup-tenv-${{ runner.os }}-${{ runner.arch }}
+
     - name: Check for cached cosign
       id: check-cosign
       shell: bash
