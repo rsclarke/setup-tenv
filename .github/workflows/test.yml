@@ -13,7 +13,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: ./
+      - name: Setup tenv
+        uses: ./
         with:
           tool: ${{ matrix.tool }}
           tool-version: latest
@@ -25,3 +26,4 @@ jobs:
         run: |
           which ${{ matrix.tool }}
           ${{ matrix.tool }} version
+

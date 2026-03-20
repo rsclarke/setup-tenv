@@ -224,5 +224,6 @@ runs:
       env:
         TOOL_NAME: ${{ inputs.tool }}
         TOOL_VERSION: ${{ inputs.tool-version }}
+        TENV_GITHUB_TOKEN: ${{ github.token }}
       run: |
         tenv $TOOL_NAME install $TOOL_VERSION
