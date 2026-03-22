@@ -6,15 +6,29 @@ A GitHub Action to set up [tofuutils/tenv](https://github.com/tofuutils/tenv) wi
 
 This action installs tenv, a tool for managing infrastructure tool versions, along with a specified tool (such as Terraform or OpenTofu) with a specific version. It includes caching capabilities and signature verification to ensure the authenticity of downloaded binaries.
 
+## Versioning
+
+This action uses **immutable releases** with full semantic versioning (`vMAJOR.MINOR.PATCH`). Floating major tags (e.g., `v1`) are **not** provided.
+
+When referencing this action, either use the full version string or pin to a commit SHA:
+
+```yaml
+# Full version string
+uses: rsclarke/setup-tenv@v1.0.0
+
+# Pinned to SHA (recommended)
+uses: rsclarke/setup-tenv@<COMMIT_SHA> # v1.0.0
+```
+
 ## Usage
 
 ```yaml
 steps:
   - name: Set up OpenTofu
-    uses: rsclarke/setup-tenv@v1
+    uses: rsclarke/setup-tenv@v1.0.0
     with:
       tool: tofu
-      tool-version: 1.6.0
+      tool-version: 1.11.5
 ```
 
 ## Inputs
@@ -41,10 +55,10 @@ The action:
 ```yaml
 steps:
   - name: Set up OpenTofu
-    uses: rsclarke/setup-tenv@v1
+    uses: rsclarke/setup-tenv@v1.0.0
     with:
       tool: tofu
-      tool-version: 1.6.0
+      tool-version: 1.11.5
 ```
 
 ### Installing Terraform with specific tenv version
@@ -52,9 +66,9 @@ steps:
 ```yaml
 steps:
   - name: Set up Terraform
-    uses: rsclarke/setup-tenv@v1
+    uses: rsclarke/setup-tenv@v1.0.0
     with:
-      tenv-version: 4.4.0
+      tenv-version: 4.9.3
       tool: terraform
-      tool-version: 1.7.1
+      tool-version: 1.14.7
 ```
