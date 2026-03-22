@@ -1,5 +1,8 @@
 name: "Setup tenv"
 description: "Set up tofuutils/tenv with caching and signature verification support"
+branding:
+  icon: "box"
+  color: "yellow"
 inputs:
   tenv-version:
     description: "Version of tenv to install (e.g., v4.9.3). Defaults to v4.9.3."
