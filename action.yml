@@ -5,9 +5,8 @@ branding:
   color: "yellow"
 inputs:
   tenv-version:
-    description: "Version of tenv to install (e.g., v4.9.3). Defaults to v4.9.3."
+    description: "Version of tenv to install (e.g., v4.9.3). Defaults to the latest release."
     required: false
-    default: "v4.9.3"
   tool:
     description: "Tool to install using tenv (e.g., terraform, tofu, etc.)"
     required: true
@@ -18,13 +17,36 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Resolve tenv version
+      id: resolve-tenv-version
+      shell: bash
+      run: |
+        REQUESTED_VERSION="${{ inputs.tenv-version }}"
+
+        if [ -z "${REQUESTED_VERSION}" ]; then
+          RESOLVED_VERSION=$(curl -fsSL \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/tofuutils/tenv/releases/latest | grep -o '"tag_name": ".*"' | cut -d'"' -f4)
+        else
+          if [[ "${REQUESTED_VERSION}" == v* ]]; then
+            RESOLVED_VERSION="${REQUESTED_VERSION}"
+          else
+            RESOLVED_VERSION="v${REQUESTED_VERSION}"
+          fi
+        fi
+
+        echo "resolved-version=${RESOLVED_VERSION}" >> $GITHUB_OUTPUT
+        echo "normalized-version=${RESOLVED_VERSION#v}" >> $GITHUB_OUTPUT
+
     - name: Restore tool cache
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: |
           ${{ runner.tool_cache }}/cosign
           ${{ runner.tool_cache }}/tenv
-        key: setup-tenv-${{ runner.os }}-${{ runner.arch }}-tenv-${{ inputs.tenv-version }}-${{ inputs.tool }}-${{ inputs.tool-version }}
+        key: setup-tenv-${{ runner.os }}-${{ runner.arch }}-tenv-${{ steps.resolve-tenv-version.outputs.resolved-version }}-${{ inputs.tool }}-${{ inputs.tool-version }}
 
     - name: Check for cached cosign
       id: check-cosign
@@ -108,8 +130,8 @@ runs:
             ;;
         esac
 
-        REQUESTED_VERSION="${{ inputs.tenv-version }}"
-        NORMALIZED_VERSION="${REQUESTED_VERSION#v}"
+        RESOLVED_VERSION="${{ steps.resolve-tenv-version.outputs.resolved-version }}"
+        NORMALIZED_VERSION="${{ steps.resolve-tenv-version.outputs.normalized-version }}"
 
         # Tool cache convention: <tool>/<version>/<arch>/
         INSTALL_DIR="${RUNNER_TOOL_CACHE}/tenv/${NORMALIZED_VERSION}/${ARCH}"
@@ -123,7 +145,8 @@ runs:
         echo "tenv-root=${TENV_ROOT_DIR}" >> $GITHUB_OUTPUT
         echo "os=${OS}" >> $GITHUB_OUTPUT
         echo "arch=${ARCH}" >> $GITHUB_OUTPUT
-        echo "requested-version=${REQUESTED_VERSION}" >> $GITHUB_OUTPUT
+        echo "resolved-version=${RESOLVED_VERSION}" >> $GITHUB_OUTPUT
+        echo "normalized-version=${NORMALIZED_VERSION}" >> $GITHUB_OUTPUT
 
         if [ -f "${COMPLETE_MARKER}" ] && [ -f "${TENV_PATH}" ] && [ -x "${TENV_PATH}" ]; then
           echo "Found cached tenv ${NORMALIZED_VERSION} at ${TENV_BIN_DIR}"
@@ -142,24 +165,9 @@ runs:
         BIN_DIR="${{ steps.check-tenv.outputs.bin-dir }}"
         OS="${{ steps.check-tenv.outputs.os }}"
         ARCH="${{ steps.check-tenv.outputs.arch }}"
-        REQUESTED_VERSION="${{ steps.check-tenv.outputs.requested-version }}"
+        TENV_VERSION="${{ steps.check-tenv.outputs.resolved-version }}"
+        NORMALIZED_VERSION="${{ steps.check-tenv.outputs.normalized-version }}"
         TEMP_DIR=$(mktemp -d)
-
-        # Determine which version to download
-        if [ -z "${REQUESTED_VERSION}" ]; then
-          TENV_VERSION=$(curl -fsSL \
-            -H "Authorization: Bearer ${{ github.token }}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/tofuutils/tenv/releases/latest | grep -o '"tag_name": ".*"' | cut -d'"' -f4)
-        else
-          # Keep the 'v' prefix for GitHub releases if it doesn't exist
-          if [[ "${REQUESTED_VERSION}" == v* ]]; then
-            TENV_VERSION="${REQUESTED_VERSION}"
-          else
-            TENV_VERSION="v${REQUESTED_VERSION}"
-          fi
-        fi
 
         # Download tenv archive and verification files
         echo "Downloading tenv ${TENV_VERSION} for ${OS}_${ARCH}..."
@@ -210,7 +218,6 @@ runs:
         rm -rf "${TEMP_DIR}"
 
         # Create the .complete sentinel
-        NORMALIZED_VERSION="${REQUESTED_VERSION#v}"
         touch "${RUNNER_TOOL_CACHE}/tenv/${NORMALIZED_VERSION}/${ARCH}.complete"
 
     - name: Add tenv to path
