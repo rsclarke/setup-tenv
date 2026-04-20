@@ -35,7 +35,7 @@ steps:
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `tenv-version` | Version of tenv to install (e.g., `v4.9.3`). | No | v4.9.3 |
+| `tenv-version` | Version of tenv to install (e.g., `v4.9.3`). | No | Latest release |
 | `tool` | Tool to install using tenv (e.g., `terraform`, `tofu`, etc.) | Yes | N/A |
 | `tool-version` | Version of the tool to install. | Yes | N/A |
 
@@ -45,8 +45,9 @@ The action:
 
 1. Checks for cached versions of cosign and tenv before downloading
 2. Installs cosign using [sigstore/cosign-installer](https://github.com/sigstore/cosign-installer) (version managed by the installer)
-3. Downloads and verifies tenv using cosign
-4. Installs the specified tool with the specified version using tenv
+3. Resolves the latest tenv release unless `tenv-version` is explicitly set
+4. Downloads and verifies tenv using cosign
+5. Installs the specified tool with the specified version using tenv
 
 ## Examples
 
