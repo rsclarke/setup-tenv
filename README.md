@@ -43,9 +43,9 @@ steps:
 
 The action:
 
-1. Checks for cached versions of cosign and tenv before downloading
-2. Installs cosign using [sigstore/cosign-installer](https://github.com/sigstore/cosign-installer) (version managed by the installer)
-3. Resolves the latest tenv release unless `tenv-version` is explicitly set
+1. Resolves the latest tenv release unless `tenv-version` is explicitly set
+2. Restores any cached tenv installation for the requested version
+3. Sets up cosign with [rsclarke/setup-cosign](https://github.com/rsclarke/setup-cosign) only when tenv needs to be downloaded and verified
 4. Downloads and verifies tenv using cosign
 5. Installs the specified tool with the specified version using tenv
 
