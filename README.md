@@ -14,10 +14,10 @@ When referencing this action, either use the full version string or pin to a com
 
 ```yaml
 # Full version string
-uses: rsclarke/setup-tenv@v1.0.0
+uses: rsclarke/setup-tenv@<VERSION>
 
 # Pinned to SHA (recommended)
-uses: rsclarke/setup-tenv@<COMMIT_SHA> # v1.0.0
+uses: rsclarke/setup-tenv@<COMMIT_SHA> # <VERSION>
 ```
 
 ## Usage
@@ -25,7 +25,7 @@ uses: rsclarke/setup-tenv@<COMMIT_SHA> # v1.0.0
 ```yaml
 steps:
   - name: Set up OpenTofu
-    uses: rsclarke/setup-tenv@v1.0.0
+    uses: rsclarke/setup-tenv@<VERSION>
     with:
       tool: tofu
       tool-version: 1.11.5
@@ -56,7 +56,7 @@ The action:
 ```yaml
 steps:
   - name: Set up OpenTofu
-    uses: rsclarke/setup-tenv@v1.0.0
+    uses: rsclarke/setup-tenv@<VERSION>
     with:
       tool: tofu
       tool-version: 1.11.5
@@ -67,7 +67,7 @@ steps:
 ```yaml
 steps:
   - name: Set up Terraform
-    uses: rsclarke/setup-tenv@v1.0.0
+    uses: rsclarke/setup-tenv@<VERSION>
     with:
       tenv-version: 4.9.3
       tool: terraform
