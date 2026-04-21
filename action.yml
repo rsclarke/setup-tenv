@@ -44,78 +44,8 @@ runs:
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: |
-          ${{ runner.tool_cache }}/cosign
           ${{ runner.tool_cache }}/tenv
         key: setup-tenv-${{ runner.os }}-${{ runner.arch }}-tenv-${{ steps.resolve-tenv-version.outputs.resolved-version }}-${{ inputs.tool }}-${{ inputs.tool-version }}
-
-    - name: Check for cached cosign
-      id: check-cosign
-      shell: bash
-      run: |
-        ARCH=$(uname -m)
-        TOOL_CACHE_DIR="${RUNNER_TOOL_CACHE}/cosign"
-
-        echo "arch=${ARCH}" >> $GITHUB_OUTPUT
-
-        # Look for any version with a .complete marker (convention: <tool>/<version>/<arch>.complete)
-        FOUND=false
-        if [ -d "${TOOL_CACHE_DIR}" ]; then
-          for VERSION_DIR in "${TOOL_CACHE_DIR}"/*/; do
-            if [ -f "${VERSION_DIR}${ARCH}.complete" ] && [ -x "${VERSION_DIR}${ARCH}/cosign" ]; then
-              echo "Found cached cosign at ${VERSION_DIR}${ARCH}/cosign"
-              echo "install-dir=${VERSION_DIR}${ARCH}" >> $GITHUB_OUTPUT
-              FOUND=true
-              break
-            fi
-          done
-        fi
-
-        if [ "${FOUND}" != "true" ]; then
-          # Prepare install dir for cosign-installer (version will be resolved after install)
-          INSTALL_DIR="${TOOL_CACHE_DIR}/pending/${ARCH}"
-          mkdir -p "${INSTALL_DIR}"
-          echo "No cached cosign found"
-          echo "install-dir=${INSTALL_DIR}" >> $GITHUB_OUTPUT
-        fi
-
-        echo "found=${FOUND}" >> $GITHUB_OUTPUT
-
-    - name: Install cosign
-      if: steps.check-cosign.outputs.found != 'true'
-      uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
-      with:
-        install-dir: ${{ steps.check-cosign.outputs.install-dir }}
-
-    - name: Register cosign in tool cache
-      if: steps.check-cosign.outputs.found != 'true'
-      id: register-cosign
-      shell: bash
-      run: |
-        ARCH="${{ steps.check-cosign.outputs.arch }}"
-        PENDING_DIR="${RUNNER_TOOL_CACHE}/cosign/pending/${ARCH}"
-        INSTALLED_VERSION=$("${PENDING_DIR}/cosign" version 2>&1 | grep -o 'GitVersion:[^,]*' | cut -d':' -f2 | xargs)
-        INSTALLED_VERSION="${INSTALLED_VERSION#v}"
-
-        # Move to conventional path: <tool>/<version>/<arch>/
-        TARGET_DIR="${RUNNER_TOOL_CACHE}/cosign/${INSTALLED_VERSION}/${ARCH}"
-        mkdir -p "${TARGET_DIR}"
-        mv "${PENDING_DIR}/cosign" "${TARGET_DIR}/cosign"
-        rm -rf "${RUNNER_TOOL_CACHE}/cosign/pending"
-
-        # Create the .complete sentinel
-        touch "${RUNNER_TOOL_CACHE}/cosign/${INSTALLED_VERSION}/${ARCH}.complete"
-
-        echo "Registered cosign ${INSTALLED_VERSION} in tool cache"
-        echo "install-dir=${TARGET_DIR}" >> $GITHUB_OUTPUT
-
-    - name: Add cosign to path
-      shell: bash
-      run: |
-        if [ "${{ steps.check-cosign.outputs.found }}" == "true" ]; then
-          echo "${{ steps.check-cosign.outputs.install-dir }}" >> $GITHUB_PATH
-        else
-          echo "${{ steps.register-cosign.outputs.install-dir }}" >> $GITHUB_PATH
-        fi
 
     - name: Check for cached tenv
       id: check-tenv
@@ -156,6 +86,10 @@ runs:
           echo "found=false" >> $GITHUB_OUTPUT
           mkdir -p "${TENV_BIN_DIR}"
         fi
+
+    - name: Set up cosign
+      if: steps.check-tenv.outputs.found != 'true'
+      uses: rsclarke/setup-cosign@c8e7371977a4a74014d7c8a3e2c0b7d6be149e56 # v1.0.0
 
     - name: Download and verify tenv
       if: steps.check-tenv.outputs.found != 'true'
