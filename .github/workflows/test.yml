@@ -4,8 +4,17 @@ on:
   push:
     branches: [main]
 
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: Test ${{ matrix.tool }} on ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -13,6 +22,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Setup tenv
         uses: ./
         with:
@@ -23,7 +34,8 @@ jobs:
           which tenv
           tenv version
       - name: Verify tool
+        env:
+          TOOL_NAME: ${{ matrix.tool }}
         run: |
-          which ${{ matrix.tool }}
-          ${{ matrix.tool }} version
-
+          which "$TOOL_NAME"
+          "$TOOL_NAME" version

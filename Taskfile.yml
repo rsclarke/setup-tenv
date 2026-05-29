@@ -22,6 +22,16 @@ vars:
   NEW_MAJOR_VERSION: "v{{.NEXT_MAJOR}}.0.0"
 
 tasks:
+  zizmor:
+    desc: Audit GitHub Actions workflows and action metadata with zizmor
+    cmds:
+      - zizmor .
+
+  fix:
+    desc: Apply safe zizmor auto-fixes
+    cmds:
+      - zizmor --fix=safe .
+
   _preflight:
     internal: true
     desc: Validate branch and remote state before releasing
