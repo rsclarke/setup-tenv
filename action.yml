@@ -95,7 +95,7 @@ runs:
 
     - name: Set up cosign
       if: steps.check-tenv.outputs.found != 'true'
-      uses: rsclarke/setup-cosign@c8e7371977a4a74014d7c8a3e2c0b7d6be149e56 # v1.0.0
+      uses: rsclarke/setup-cosign@5bcb616769128e6abdbd3241155a2e164382216f # v1.1.0
 
     - name: Download and verify tenv
       if: steps.check-tenv.outputs.found != 'true'
